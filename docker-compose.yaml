@@ -1,33 +1,57 @@
 services:
-  redis:
-    container_name: searxng-redis
-    image: docker.io/valkey/valkey:8-alpine
-    command: valkey-server --save 30 1 --loglevel warning
-    restart: unless-stopped
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: ts-searxng
+    hostname: ${SEARXNG_HOSTNAME:?Environment variable SEARXNG_HOSTNAME must be set}
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
     networks:
       - searxng
+    restart: unless-stopped
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:?Environment variable TS_AUTHKEY must be set}?ephemeral=false
+      - "TS_EXTRA_ARGS=--advertise-tags=tag:container --reset"
+      - TS_SERVE_CONFIG=/config/searxng.json
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
     volumes:
-      - valkey-data2:/data
+      - ./config/tailscale:/config
+      - ./data/tailscale:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+      - valkey
+    volumes:
+      - ./config/searxng:/etc/searxng
+      - ./data/searxng:/var/cache/searxng
+    environment:
+      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:?Environment variable SEARXNG_HOSTNAME must be set}.${TAILNET_DOMAIN:?Environment variable TAILNET_DOMAIN must be set}/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?Environment variable SEARXNG_SECRET must be set}
     logging:
       driver: "json-file"
       options:
         max-size: "1m"
         max-file: "1"
 
-  searxng:
-    container_name: searxng
-    image: docker.io/searxng/searxng:latest
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    container_name: searxng-valkey
+    command: valkey-server --save 30 1 --loglevel warning
     restart: unless-stopped
     networks:
       - searxng
-    ports:
-      - "0.0.0.0:14444:8080"
     volumes:
-      - ./searxng:/etc/searxng:rw
-    environment:
-      - SEARXNG_BASE_URL=${SEARXNG_HOSTNAME:-http://localhost}:14444/
-      - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
-      - UWSGI_THREADS=${SEARXNG_UWSGI_THREADS:-4}
+      - ./data/valkey:/data
     logging:
       driver: "json-file"
       options:
@@ -36,6 +60,3 @@ services:
 
 networks:
   searxng:
-
-volumes:
-  valkey-data2:
