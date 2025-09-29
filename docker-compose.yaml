@@ -2,19 +2,13 @@ services:
   tailscale:
     image: tailscale/tailscale:latest
     container_name: ts-searxng
-    hostname: ${SEARXNG_HOSTNAME:?Environment variable SEARXNG_HOSTNAME must be set}
+    hostname: ${HOSTNAME:?Environment variable HOSTNAME must be set}
+    restart: unless-stopped
     dns:
       - 1.1.1.1
       - 9.9.9.9
     networks:
       - searxng
-    restart: unless-stopped
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY:?Environment variable TS_AUTHKEY must be set}?ephemeral=false
-      - "TS_EXTRA_ARGS=--advertise-tags=tag:container --reset"
-      - TS_SERVE_CONFIG=/config/searxng.json
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=false
     volumes:
       - ./config/tailscale:/config
       - ./data/tailscale:/var/lib/tailscale
@@ -22,20 +16,25 @@ services:
       - /dev/net/tun:/dev/net/tun
     cap_add:
       - net_admin
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:?Environment variable TS_AUTHKEY must be set}?ephemeral=false
+      - "TS_EXTRA_ARGS=--advertise-tags=tag:container --reset"
+      - TS_SERVE_CONFIG=/config/tailscale.json
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
 
   searxng:
     image: docker.io/searxng/searxng:latest
     container_name: searxng
     restart: unless-stopped
-    network_mode: service:tailscale
     depends_on:
-      - tailscale
       - valkey
+    network_mode: service:tailscale
     volumes:
       - ./config/searxng:/etc/searxng
       - ./data/searxng:/var/cache/searxng
     environment:
-      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:?Environment variable SEARXNG_HOSTNAME must be set}.${TAILNET_DOMAIN:?Environment variable TAILNET_DOMAIN must be set}/
+      - SEARXNG_BASE_URL=https://${HOSTNAME:?Environment variable HOSTNAME must be set}.${DOMAIN:?Environment variable DOMAIN must be set}/
       - SEARXNG_SECRET=${SEARXNG_SECRET:?Environment variable SEARXNG_SECRET must be set}
     logging:
       driver: "json-file"
@@ -57,6 +56,16 @@ services:
       options:
         max-size: "1m"
         max-file: "1"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: searxng-watchtower
+    command: --interval 300 searxng
+    restart: unless-stopped
+    depends_on:
+      - searxng
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   searxng:
