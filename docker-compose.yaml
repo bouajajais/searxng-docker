@@ -22,6 +22,7 @@ services:
       - TS_SERVE_CONFIG=/config/tailscale.json
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
+    labels: [ "com.centurylinklabs.watchtower.scope=searxng" ]
 
   searxng:
     image: docker.io/searxng/searxng:latest
@@ -41,6 +42,7 @@ services:
       options:
         max-size: "1m"
         max-file: "1"
+    labels: [ "com.centurylinklabs.watchtower.scope=searxng" ]
 
   valkey:
     image: docker.io/valkey/valkey:8-alpine
@@ -56,11 +58,13 @@ services:
       options:
         max-size: "1m"
         max-file: "1"
+    labels: [ "com.centurylinklabs.watchtower.scope=searxng" ]
 
   watchtower:
     image: containrrr/watchtower
     container_name: searxng-watchtower
-    command: --interval 300 searxng
+    command: --interval 300 searxng --scope searxng
+    labels: [ "com.centurylinklabs.watchtower.scope=searxng" ]
     restart: unless-stopped
     depends_on:
       - searxng
