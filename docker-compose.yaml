@@ -63,7 +63,7 @@ services:
   watchtower:
     image: containrrr/watchtower
     container_name: searxng-watchtower
-    command: --interval 300 searxng --scope searxng
+    command: --interval 21600 searxng --scope searxng
     labels: [ "com.centurylinklabs.watchtower.scope=searxng" ]
     restart: unless-stopped
     depends_on:
