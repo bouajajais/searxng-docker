@@ -2,5 +2,4 @@
 
 searxng-docker.service
 config/searxng/uwsgi.ini
-data
 .env
